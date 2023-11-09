@@ -1,0 +1,77 @@
+import math
+import random
+from collections import Counter
+
+MAX_NUMBER_OF_BINGO = 75
+NUMBERS = range(1, MAX_NUMBER_OF_BINGO+1)
+
+# http://www.din.or.jp/~take_din/math/BINGO2.html
+
+def formula_accum_prob(n):  # http://mizuta.c.ooco.jp/bingo.html
+    a = math.perm(n, 5) / math.perm(MAX_NUMBER_OF_BINGO, 5)
+    b = math.perm(n, 4) / math.perm(MAX_NUMBER_OF_BINGO, 4)
+    return 1-(1-a) ** 8 * (1-b) ** 4
+
+
+def formula_prob(n):  # http://mizuta.c.ooco.jp/bingo.html
+    return formula_accum_prob(n) - formula_accum_prob(n-1)
+
+
+def generate_board():  # 5x5のビンゴボード生成、真ん中はfree(0で表現)
+    numbers_on_board = random.sample(NUMBERS, k=24)
+    board_1d = [*numbers_on_board[:12], 0, *numbers_on_board[12:]]
+    return [board_1d[5*i:5*(i+1)] for i in range(5)]
+
+
+def bingo_patterns(board):  # ビンゴが成立する
+    return frozenset([
+        *[frozenset(board[i]) for i in range(5)],  # 横方向5列
+        *[frozenset([board[i][j] for i in range(5)]) for j in range(5)],  # 縦方向5列
+        frozenset(board[i][i] for i in range(5)),  # 右下ななめ
+        frozenset(board[i][4-i] for i in range(5))  # 左下ななめ
+    ])
+
+
+def select():
+    return [0, *random.sample(NUMBERS, k=MAX_NUMBER_OF_BINGO)]
+
+
+def picks_to_bingo():
+    board = generate_board()
+    patterns = bingo_patterns(board)
+    selected_numbers = select()
+    for i in range(0, 76):
+        choice = set(selected_numbers[:i+1])
+        lines = [pat.intersection(choice) for pat in patterns]
+        max_lines = max([len(line) for line in lines])
+        if max_lines == 5:
+            return i
+    return MAX_NUMBER_OF_BINGO
+
+
+def sample_probs(number_of_trial):
+    counts = [picks_to_bingo() for _ in range(number_of_trial)]
+    counter = Counter(counts)
+    return {k: v/number_of_trial for k, v in sorted(list(counter.items()))}
+
+
+def plot_to_png(by_formula, by_sample1, by_sample2):
+    import matplotlib.pyplot as plt
+    (xs_formula, ys_formula) = zip(*by_formula.items())
+    (xs_sample1, ys_sample1) = zip(*by_sample1.items())
+    (xs_sample2, ys_sample2) = zip(*by_sample2.items())
+    plt.plot(xs_formula, ys_formula, label="formula")
+    plt.plot(xs_sample1, ys_sample1, label="sample10000")
+    plt.plot(xs_sample2, ys_sample2, label="sample1000000")
+    plt.legend()
+    plt.savefig(f"bingo_{MAX_NUMBER_OF_BINGO}.png")
+
+
+if __name__ == "__main__":
+    by_formula = {k: formula_prob(k) for k in range(4, MAX_NUMBER_OF_BINGO+1)}
+    by_sample_5000 = sample_probs(number_of_trial=5000)
+    # by_sample_1000000 = sample_probs(number_of_trial=1000000)
+    print(by_formula)
+    print(by_sample_5000)
+    # print(by_sample_1000000)
+    # plot_to_png(by_formula, by_sample_10000, by_sample_1000000)
